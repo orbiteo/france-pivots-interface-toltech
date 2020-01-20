@@ -5,7 +5,6 @@ define('PS_SHOP_PATH', 'https://france-pivots.com/magasin/');
 define('PS_WS_AUTH_KEY', 'WWKPQP4PSQ4LJWGY1BLYQJNI6LIQ6AWC');
 require_once('./PSWebServiceLibrary.php');
 
-
 $arrayFichesProduit = [];
 // Sortir la date du jour et vérifier si un fichier de maj produit est dispo à cette date
 $dateOFD = date("d-m-Y");
@@ -17,6 +16,7 @@ if (($handle = fopen($dateOFD."_products_import.csv", "r")) !== FALSE) { // Impo
   }
   /*** APPEL API PRESTASHOP ***/
   $webService = new PrestaShopWebservice(PS_SHOP_PATH, PS_WS_AUTH_KEY, DEBUG);
+
   for($i=0 ; $i<count($arrayFichesProduit) ; $i++){
     // Création du link_rewrite sans accent, espace, etc...
     $unwanted_array = array('Š'=>'S', 'š'=>'s', 'Ž'=>'Z', 'ž'=>'z', 'À'=>'A', 'Á'=>'A', 'Â'=>'A', 'Ã'=>'A', 'Ä'=>'A', 'Å'=>'A', 'Æ'=>'A', 'Ç'=>'C', 'È'=>'E', 'É'=>'E',
@@ -33,7 +33,6 @@ if (($handle = fopen($dateOFD."_products_import.csv", "r")) !== FALSE) { // Impo
     $link_rewriteSansPar1 = strtr($link_rewriteSansSlach, "(", '-');
     $link_rewriteSansPar2 = strtr($link_rewriteSansPar1, ")", '-');
     $link_rewriteMinuscules = strtolower($link_rewriteSansPar2);
-    $nameSansApos = strtr($link_rewriteSansAccent,  "'", '-');
     $nameSansAposMin = strtolower($nameSansApos);
     $nbDeCarateres = strlen($link_rewriteMinuscules);
     if($nbDeCarateres >= 120) {
@@ -60,24 +59,21 @@ if (($handle = fopen($dateOFD."_products_import.csv", "r")) !== FALSE) { // Impo
         $xml = $webService->edit($opt); //Edit
         
         //Modification des quantités associées à cet id_product
-        $xml = $webService->get($opt);
-        foreach ($xml->product->associations->stock_availables->stock_available as $stock) {
-            $xml2 = $webService->get(array('url' => PS_SHOP_PATH.'/api/stock_availables?schema=blank'));
-            $stock_availables = $xml2->children()->children();
-            $stock_availables->id = $stock->id;
-            $stock_availables->id_product  = (int)$arrayFichesProduit[$i][3];
-            $stock_availables->quantity = floatval($arrayFichesProduit[$i][6]);
-            $stock_availables->id_shop = 1;
-            $stock_availables->out_of_stock = 1;
-            $stock_availables->depends_on_stock = 0;
-            $stock_availables->id_product_attribute = $stock->id_product_attribute;
+        $xml2 = $webService->get(array('url' => PS_SHOP_PATH.'/api/stock_availables/'.$arrayFichesProduit[$i][3])); //Id stock available = id_product
+        $stock_availables = $xml2->children()->children();
+        $stock_availables->id = $arrayFichesProduit[$i][3];
+        $stock_availables->id_product  = (int)$arrayFichesProduit[$i][3];
+        $stock_availables->quantity = floatval($arrayFichesProduit[$i][6]);
+        $stock_availables->id_shop = 1;
+        $stock_availables->out_of_stock = 1;
+        $stock_availables->depends_on_stock = 0;
+        $stock_availables->id_product_attribute = 0; // Toujours 0 pour le produit de base
 
-            //POST des données vers la ressource 
-            $opt = array('resource' => 'stock_availables');
-            $opt['putXml'] = $xml2->asXML();
-            $opt['id'] = $stock->id ;
-            $xml2 = $webService->edit($opt);
-        }
+        //POST des données vers la ressource 
+        $opt = array('resource' => 'stock_availables');
+        $opt['putXml'] = $xml2->asXML();
+        $opt['id'] = $stock_availables->id ;
+        $xml2 = $webService->edit($opt);
       }
       catch (PrestaShopWebserviceException $e) { // Si id produit non existant => erreur donc création
         $trace = $e->getTrace();

@@ -8,7 +8,7 @@ require_once('./PSWebServiceLibrary.php');
 $arrayFichesProduit = [];
 // Sortir la date du jour et vérifier si un fichier de maj produit est dispo à cette date
 $dateOFD = date("d-m-Y");
-if (($handle = fopen($dateOFD."_products_import.csv", "r")) !== FALSE) { // Import du fichier .csv
+if (($handle = fopen('imports/products/'.$dateOFD."_products_import.csv", "r")) !== FALSE) { // Import du fichier .csv
   while (($data = fgetcsv($handle, 1000, ";")) !== FALSE) {
     if($data[2] === "d" && is_numeric($data[0]) && $data[3] != "NULL") { //On vérifier que la colonne id_product soit un int et qu'il s'agit d'une déclinaison
         array_push($arrayFichesProduit, $data);
@@ -77,11 +77,9 @@ if (($handle = fopen($dateOFD."_products_import.csv", "r")) !== FALSE) { // Impo
                     $opt['putXml'] = $xml2->asXML();
                     $opt['id'] = $stock->id ;
                     $xml2 = $webService->edit($opt);
-                }
-                
+                }  
             }
         }
- 
       }
       catch (PrestaShopWebserviceException $e) { // Si id attribute non existant => erreur donc return (on ne créé pas de déclinaisons sans produit de base)
         $trace = $e->getTrace();

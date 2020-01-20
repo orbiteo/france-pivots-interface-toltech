@@ -10,7 +10,13 @@ $arrayFichesProduit = [];
 $dateOFD = date("d-m-Y");
 if (($handle = fopen('imports/products/'.$dateOFD."_products_import.csv", "r")) !== FALSE) { // Import du fichier .csv
   while (($data = fgetcsv($handle, 1000, ";")) !== FALSE) {
-    if($data[2] === "p" && is_numeric($data[0]) && $data[3] != "NULL") { //On vérifier que la colonne id_product soit un int et qu'il s'agit d'un produit
+    if($data[2] === "p" && is_numeric($data[3])) { //On vérifier que la colonne id_product soit un int et qu'il s'agit d'un produit
+        array_push($arrayFichesProduit, $data);
+    } elseif($data[3] == "NULL") { // Si produit non référencé chez SAP, on va créer un faux id dynamiquement pour tomber dans la condition id non existant, donc création
+        $SQL = Db::getInstance()->executeS("SELECT MAX(id_product) AS idMax
+        FROM "._DB_PREFIX_."product"); // retourne l'id le + élevé
+        $data[1] = (int)$SQL[0]["idMax"]+1; // id Produit
+        $data[3] = (int)$SQL[0]["idMax"]+1; // id déclinaison (identique en cas de produit)
         array_push($arrayFichesProduit, $data);
     }
   }
@@ -51,6 +57,8 @@ if (($handle = fopen('imports/products/'.$dateOFD."_products_import.csv", "r")) 
         $product->link_rewrite->language[0][0] = $nameMax128;
         unset($xml->children()->children()->manufacturer_name);
         unset($xml->children()->children()->quantity);
+
+        // Ajouter la condition $product->price = 0 pour rendre le produit inactif
 
         //Envoi des données
         $opt = array('resource' => 'products');

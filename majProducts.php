@@ -6,13 +6,12 @@ define('PS_WS_AUTH_KEY', 'WWKPQP4PSQ4LJWGY1BLYQJNI6LIQ6AWC');
 require_once('./PSWebServiceLibrary.php');
 
 $arrayFichesProduit = [];
-// Sortir la date du jour et vérifier si un fichier de maj produit est dispo à cette date
-$dateOFD = date("d-m-Y");
+$dateOFD = date("d-m-Y"); //// Sortir la date du jour et vérifier si un fichier de maj produit est dispo à cette date
 if (($handle = fopen('imports/products/'.$dateOFD."_products_import.csv", "r")) !== FALSE) { // Import du fichier .csv
   while (($data = fgetcsv($handle, 1000, ";")) !== FALSE) {
     if($data[2] === "p" && is_numeric($data[3])) { //On vérifier que la colonne id_product soit un int et qu'il s'agit d'un produit
         array_push($arrayFichesProduit, $data);
-    } elseif($data[3] == "NULL") { // Si produit non référencé chez SAP, on va créer un faux id dynamiquement pour tomber dans la condition id non existant, donc création
+    } elseif($data[3] == "NULL") { // Si produit non référencé chez Toltech, on va créer un faux id dynamiquement pour tomber dans la condition id non existant, donc création
         $SQL = Db::getInstance()->executeS("SELECT MAX(id_product) AS idMax
         FROM "._DB_PREFIX_."product"); // retourne l'id le + élevé
         $data[1] = (int)$SQL[0]["idMax"]+1; // id Produit
@@ -39,13 +38,15 @@ if (($handle = fopen('imports/products/'.$dateOFD."_products_import.csv", "r")) 
     $link_rewriteSansPar1 = strtr($link_rewriteSansSlach, "(", '-');
     $link_rewriteSansPar2 = strtr($link_rewriteSansPar1, ")", '-');
     $link_rewriteMinuscules = strtolower($link_rewriteSansPar2);
-    $nameSansAposMin = strtolower($nameSansApos);
     $nbDeCarateres = strlen($link_rewriteMinuscules);
     if($nbDeCarateres >= 120) {
       $nameMax128 = substr($link_rewriteMinuscules, 0, 120);
     } else {
       $nameMax128 = $link_rewriteMinuscules;
     }
+    $descriptionCourte = strtr($arrayFichesProduit[$i][9], $unwanted_array);
+    $description = strtr($arrayFichesProduit[$i][8], $unwanted_array);
+
       try { // Appel de l'API avec un id produit
         //Mise à jour des produits existants
         $xml = $webService->get(array('url' => PS_SHOP_PATH.'/api/products/'.$arrayFichesProduit[$i][3])); // On va sortir chaque fiche produit
@@ -58,7 +59,13 @@ if (($handle = fopen('imports/products/'.$dateOFD."_products_import.csv", "r")) 
         unset($xml->children()->children()->manufacturer_name);
         unset($xml->children()->children()->quantity);
 
-        // Ajouter la condition $product->price = 0 pour rendre le produit inactif
+        if($arrayFichesProduit[$i][9] != '') { // si colonne description non vide
+            $product->description->language[0][0] = $description;
+        }
+        
+        if($arrayFichesProduit[$i][8] != '') { // si colonne description courte non vide
+            $product->description_short->language[0][0] = $descriptionCourte;
+        }
 
         //Envoi des données
         $opt = array('resource' => 'products');
@@ -72,6 +79,11 @@ if (($handle = fopen('imports/products/'.$dateOFD."_products_import.csv", "r")) 
         $stock_availables->id = $arrayFichesProduit[$i][3];
         $stock_availables->id_product  = (int)$arrayFichesProduit[$i][3];
         $stock_availables->quantity = floatval($arrayFichesProduit[$i][6]);
+        if($arrayFichesProduit[$i][7] == 0) {
+            $stock_availables->active = 0; 
+        } else if($arrayFichesProduit[$i][7] == 1) {
+            $stock_availables->active = 1; 
+        }
         $stock_availables->id_shop = 1;
         $stock_availables->out_of_stock = 1;
         $stock_availables->depends_on_stock = 0;
@@ -94,8 +106,20 @@ if (($handle = fopen('imports/products/'.$dateOFD."_products_import.csv", "r")) 
             $product->price = floatval($arrayFichesProduit[$i][5]);
             $product->name->language[0][0] = $link_rewriteSansAccent;
             $product->link_rewrite->language[0][0] = $link_rewriteMinuscules;
-            $product->link_rewrite->language[0][0]['id'] = 2;
-            $product->link_rewrite->language[0][0]['xlink:href'] = PS_SHOP_PATH . '/api/languages/' . 2;
+            $product->link_rewrite->language[0][0]['id'] = 1;
+            $product->link_rewrite->language[0][0]['xlink:href'] = PS_SHOP_PATH . '/api/languages/' . 1;
+
+            if($arrayFichesProduit[$i][9] != '') { // si colonne description courte non vide
+                $product->description->language[0][0] = $descriptionCourte;
+                $product->description->language[0][0]['id'] = 1;
+                $product->description->language[0][0]['xlink:href'] = PS_SHOP_PATH . '/api/languages/' . 1;
+            }
+            
+            if($arrayFichesProduit[$i][8] != '') { // si colonne description non vide
+                $product->description_short->language[0][0] = $description;
+                $product->description_short->language[0][0]['id'] = 1;
+                $product->descrdescription_shortiption->language[0][0]['xlink:href'] = PS_SHOP_PATH . '/api/languages/' . 1;
+            }
 
             //Envoie des données
             $opt = array('resource' => 'products');

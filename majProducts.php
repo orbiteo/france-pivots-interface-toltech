@@ -106,19 +106,13 @@ if (($handle = fopen('imports/products/'.$dateOFD."_products_import.csv", "r")) 
             $product->price = floatval($arrayFichesProduit[$i][5]);
             $product->name->language[0][0] = $link_rewriteSansAccent;
             $product->link_rewrite->language[0][0] = $link_rewriteMinuscules;
-            $product->link_rewrite->language[0][0]['id'] = 1;
-            $product->link_rewrite->language[0][0]['xlink:href'] = PS_SHOP_PATH . '/api/languages/' . 1;
 
             if($arrayFichesProduit[$i][9] != '') { // si colonne description courte non vide
                 $product->description->language[0][0] = $descriptionCourte;
-                $product->description->language[0][0]['id'] = 1;
-                $product->description->language[0][0]['xlink:href'] = PS_SHOP_PATH . '/api/languages/' . 1;
             }
             
             if($arrayFichesProduit[$i][8] != '') { // si colonne description non vide
                 $product->description_short->language[0][0] = $description;
-                $product->description_short->language[0][0]['id'] = 1;
-                $product->descrdescription_shortiption->language[0][0]['xlink:href'] = PS_SHOP_PATH . '/api/languages/' . 1;
             }
 
             //Envoie des données

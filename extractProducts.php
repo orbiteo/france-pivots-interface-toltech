@@ -17,12 +17,20 @@ fputcsv($fh, $entete);
 
 $arrayDetailsAllProducts = []; //Tableau recap de toutes les commandes
 
+/* Fonction pour supprimer les caractères d'echappement */
+function removeAntislach($chaineDeCaracteres) 
+{ 
+  $first = str_replace("/", "", $chaineDeCaracteres);
+  return(stripslashes($first));
+}
+
 //sortir le xml products
 $webService = new PrestaShopWebservice(PS_SHOP_PATH, PS_WS_AUTH_KEY, DEBUG);
 try {
   $xml = $webService->get(array('resource' => 'products'));
   $totalproducts = $xml->products->children();
   //Faire une boucle pour sortir tous les id
+  $l = 0;
   foreach ($totalproducts as $product) {
     $idProduct = $product->attributes();
     // faire un appel API avec chaque id
@@ -30,19 +38,19 @@ try {
     $productDetails = $xml->children()->children();
     // extraire les données dans des variables puis dans un tableau par id, puis dans un tableau de tous les id
     $productId = $productDetails->id;
-    $productReference = $productDetails->reference;
+    $productReference = removeAntislach($productDetails->reference);
 
     $xml2 = $webService->get(array('url' => PS_SHOP_PATH.'/api/stock_availables/'.$productId));
     $productStock = $xml2->children()->children();
     $productQuantity = $productStock->quantity;
 
     $arrayDetailsProduct = array($productId, "p", $productId, $productReference, $productQuantity); 
-    array_push($arrayDetailsAllProducts, $arrayDetailsProduct); // ajouter chaque tableau client au tableau général
+    array_push($arrayDetailsAllProducts, $arrayDetailsProduct); // ajouter chaque tableau produit au tableau général
   }
   // remplir le fichier csv avec ces données avec la méthode fputcsv()
-  foreach ($arrayDetailsAllProducts as $fields) {
+  /*foreach ($arrayDetailsAllProducts as $fields) {
     fputcsv($fh, $fields);
-  }
+  }*/
 }
 catch (PrestaShopWebserviceException $e) {
     $trace = $e->getTrace();
@@ -62,7 +70,7 @@ try {
       $combinationDetails = $xml->children()->children();
       // extraire les données dans des variables puis dans un tableau par id, puis dans un tableau de tous les id
       $combinationId = $combinationDetails->id;
-      $combinationReference = $combinationDetails->reference;
+      $combinationReference = removeAntislach($combinationDetails->reference);
       $id_product = $combinationDetails->id_product;
   
       $xml = $webService->get(array('url' => PS_SHOP_PATH.'/api/products/'.$id_product)); // On va sortir les info de l'id_product correspondant
@@ -85,12 +93,7 @@ try {
         }
       }  
     }
-    print_r($arrayDetailsAllProducts);
-    // remplir le fichier csv avec ces données avec la méthode fputcsv()
-    foreach ($arrayDetailsAllProducts as $fields) {
-        fputcsv($fh, $fields);
-    }
-    fclose($fh);
+    
   }
   catch (PrestaShopWebserviceException $e) {
       $trace = $e->getTrace();
@@ -98,7 +101,11 @@ try {
       else if ($trace[0]['args'][0] == 401) echo 'Bad auth key';
       else echo $e->getMessage();
   }
-
+// remplir le fichier csv avec ces données avec la méthode fputcsv()
+foreach ($arrayDetailsAllProducts as $fields) {
+  fputcsv($fh, $fields);
+}
+fclose($fh);
 
 
 /*** FIN EXTRACT FICHIER PRODUITS VERS SAP ***/

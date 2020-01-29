@@ -47,10 +47,6 @@ try {
     $arrayDetailsProduct = array($productId, "p", $productId, $productReference, $productQuantity); 
     array_push($arrayDetailsAllProducts, $arrayDetailsProduct); // ajouter chaque tableau produit au tableau général
   }
-  // remplir le fichier csv avec ces données avec la méthode fputcsv()
-  /*foreach ($arrayDetailsAllProducts as $fields) {
-    fputcsv($fh, $fields);
-  }*/
 }
 catch (PrestaShopWebserviceException $e) {
     $trace = $e->getTrace();

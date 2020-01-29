@@ -12,6 +12,11 @@ if (($handle = fopen('imports/products/'.$dateOFD."_products_import.csv", "r")) 
   while (($data = fgetcsv($handle, 1000, ";")) !== FALSE) {
     if($data[2] === "d" && is_numeric($data[0]) && $data[3] != "NULL") { //On vérifier que la colonne id_product soit un int et qu'il s'agit d'une déclinaison
         array_push($arrayFichesProduit, $data);
+    } elseif($data[3] == "NULL" && $data[1] != "NULL") { // Si attribute non référencé chez Toltech mais id_product existant, on va créer un faux id dynamiquement pour tomber dans la condition id non existant, donc création
+      $SQL = Db::getInstance()->executeS("SELECT MAX(id_product_attribute) AS idMax
+      FROM "._DB_PREFIX_."product_attribute"); // retourne l'id le + élevé
+      $data[3] = (int)$SQL[0]["idMax"]+1; // id déclinaison 
+      array_push($arrayFichesProduit, $data);
     }
   }
   /*** APPEL API PRESTASHOP ***/
@@ -40,8 +45,8 @@ if (($handle = fopen('imports/products/'.$dateOFD."_products_import.csv", "r")) 
     } else {
       $nameMax128 = $link_rewriteMinuscules;
     }
-      try { // Appel de l'API avec un id produit
-        //Mise à jour des produits existants
+      try { // Appel de l'API avec un id attribute
+        //Mise à jour des attributes existants
         $xml = $webService->get(array('url' => PS_SHOP_PATH.'/api/combinations/'.$arrayFichesProduit[$i][3])); // On va sortir chaque fiche produit
         //récupération node product
         $combinations = $xml->children()->children();
@@ -81,9 +86,67 @@ if (($handle = fopen('imports/products/'.$dateOFD."_products_import.csv", "r")) 
             }
         }
       }
-      catch (PrestaShopWebserviceException $e) { // Si id attribute non existant => erreur donc return (on ne créé pas de déclinaisons sans produit de base)
+      catch (PrestaShopWebserviceException $e) { // Si id attribute non existant, on le créé
         $trace = $e->getTrace();
-        if ($trace[0]['args'][0] == 404) echo 'Bad id';
+        if ($trace[0]['args'][0] == 404) {
+          try {
+            $xml = $webService->get(array('url' => PS_SHOP_PATH.'/api/combinations?schema=blank'));
+            $combination = $xml->children()->children();
+            // Nodes obligatoires
+            $combination->id_product = intval($arrayFichesProduit[$i][1]);
+            $combination->price = floatval($arrayFichesProduit[$i][5]);
+            $combination->location = 0;
+            $combination->minimal_quantity = 1;
+            $combination->reference = $link_rewriteSansAccent;
+
+            //Envoie des données
+            $opt = array('resource' => 'combinations');
+            $opt['postXml'] = $xml->asXML(); //post pour créer
+            $xml = $webService->add($opt); //Add
+            $ps_attribute_id = $xml->combination->id;
+
+            //Créer un id_attribute incrémenté - table product_attribute_combination
+            /*Db::getInstance()->insert(_DB_PREFIX_."product_attribute_combination", array(
+                'id_product_attribute'  => $ps_attribute_id
+            ));
+            $SQL = Db::getInstance()->executeS("SELECT MAX(id_attribute) AS idAttriCreated
+            FROM "._DB_PREFIX_."product_attribute_combination"); // retourne l'id le + élevé
+            $idAttrJustCreated = (int)$SQL[0]["idAttriCreated"]; // id attribute
+
+            //créer ligne sur table attribute_lang avec id_attribute créé + id_lang 1 + name
+            Db::getInstance()->insert(_DB_PREFIX_."attribute_lang", array(
+              'id_attribute'  => $idAttrJustCreated,
+              'id_lang'       => 1,
+              'name'          => $link_rewriteSansAccent,
+            ));
+            */
+
+            //Création des quantités associées à cet id_attribute
+            $xml = $webService->get($opt);
+            foreach ($xml->product->associations->stock_availables->stock_available as $stock) {
+              echo 'toto';
+                $xml2 = $webService->get(array('url' => PS_SHOP_PATH.'/api/stock_availables?schema=blank'));
+                $stock_availables = $xml2->children()->children();
+                $stock_availables->id_product  = intval($arrayFichesProduit[$i][1]);
+                $stock_availables->quantity = floatval($arrayFichesProduit[$i][6]);
+                $stock_availables->id_shop = 1;
+                $stock_availables->out_of_stock = 1;
+                $stock_availables->depends_on_stock = 0;
+                $stock_availables->id_product_attribute = $ps_attribute_id;
+
+                //POST des données vers la ressource 
+                $opt = array('resource' => 'stock_availables');
+                $opt['postXml'] = $xml2->asXML();
+                $xml2 = $webService->add($opt);
+            }
+          }
+          catch (PrestaShopWebserviceException $e) {
+              $trace = $e->getTrace();
+              if ($trace[0]['args'][0] == 404) echo 'Bad ID';
+              else if ($trace[0]['args'][0] == 401) echo 'Bad auth key';
+              else echo $e->getMessage();
+          }
+        }
         else if ($trace[0]['args'][0] == 401) echo 'Bad auth key';
         else echo $e->getMessage();
       }
